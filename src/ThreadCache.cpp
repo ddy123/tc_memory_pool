@@ -124,7 +124,7 @@ namespace ddy_memoryPool{
         freeListSize_[index]=keepNum;
 
         if(returnNum>0&&returnHead!=nullptr){
-            CentralCache::getInstance().returnRange(returnHead,returnNum*alignedSize,index);
+            CentralCache::getInstance().returnRange(returnHead,returnNum,index);
         }
 
 
