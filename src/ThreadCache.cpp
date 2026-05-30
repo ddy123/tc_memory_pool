@@ -72,5 +72,12 @@ namespace ddy_memoryPool{
         最终取二者较小值。baseNum 是“建议值”，maxNum 是“上限保护” */
     }
 
+    //判断是否需要将内存回收给中心缓存
+    bool ThreadCache::shouldReturnToCentralCache(size_t size){
+        // 设定阈值，例如：当自由链表的大小超过一定数量时
+        constexpr size_t threshold=64; // 例如，64个内存块
+        return (freeListSize_[index]>threshold);
+
+    }
 
 }
