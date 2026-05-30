@@ -46,6 +46,31 @@ namespace ddy_memoryPool{
     }
 
     }
+    //计算批量获取内存块的数量
+    size_t ThreadCache::getBatchNum(size_t size){
+        //基准：每次批量获取不超过4KB内存
+        constexpr size_t MAX_BATCH_SIZE=4*1024 //4kB
+
+        // 根据对象大小设置合理的基准批量数
+        size_t baseNum;
+        if (size <= 32) baseNum = 64;    // 64 * 32 = 2KB
+        else if (size <= 64) baseNum = 32;  // 32 * 64 = 2KB
+        else if (size <= 128) baseNum = 16; // 16 * 128 = 2KB
+        else if (size <= 256) baseNum = 8;  // 8 * 256 = 2KB
+        else if (size <= 512) baseNum = 4;  // 4 * 512 = 2KB
+        else if (size <= 1024) baseNum = 2; // 2 * 1024 = 2KB
+        else baseNum = 1;                   // 大于1024的对象每次只从中心缓存取1个
+
+        //计算最大批量数
+        size_t maxNum=std::max(size_t(1),MAX_BATCH_SIZE/size);
+
+        //取最小值，确保至少返回1
+
+        return std::max(size_t(1),std::min(maxNum.baseNum));
+        /* baseNum 控制经验批量数量；
+        maxNum 控制一次批量获取的最大总字节数；
+        最终取二者较小值。baseNum 是“建议值”，maxNum 是“上限保护” */
+    }
 
 
 }
