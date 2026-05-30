@@ -90,12 +90,45 @@ namespace ddy_memoryPool{
         freeListSize_[index]+=batchNum-1;
 
         //娶一个返回，其余放入线程本地自由链表
+        //block1返回给用户，block2后面的块挂到freeList_[index]
         void* result =start;
         //从中心缓存获取就说明线程本地链表为空，因此可以直接将start的下一个节点赋给链表头部
         if(batchNum>1){
-            freeList_[index]=*reinterpret<void**>(start);
+            freeList_[index]=*reinterpret_cast<void**>(start);
         }
         return result;
+    }
+    void ThreadCache::returnToCentralCache(void* start,size_t size){
+        //根据大小计算对应的索引
+        size_t index=SizeClass::getIndex(size);
+        //获取对齐后的实际块大小
+        size_t alignedSize=SizeClass::roundUp(size);
+        //计算要归还内存块数量
+        size_t batchNum=freeListSize_[index];
+        if(batchNum<=1) return;//如果只有一个块则不归还
+        //保留一部分在ThreadCache中如1/4
+        size_t keepNum=std::max(batchNum/4,size_t(1));
+        size_t returnNum=batchNum-keepNum;
+
+        void* splitNode=start;
+        for(size_t i=0;i<keepNum-1;++i){
+            splitNode=*(reinterpret_cast<void**>(splitNode));
+            if(splitNode==nullptr){
+                return;
+            }
+        }
+        void* returnHead=*reinterpret_cast<void**>(splitNode);
+        *reinterpret_cast<void**>(splitNode)=nullptr;
+
+        freeList_[index]=start;
+        freeListSize_[index]=keepNum;
+
+        if(returnNum>0&&returnHead!=nullptr){
+            CentralCache::getInstance().returnRange(returnHead,returnNum*alignedSize,index);
+        }
+
+
+
     }
 
 }
