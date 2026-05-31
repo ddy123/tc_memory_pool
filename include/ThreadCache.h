@@ -6,7 +6,7 @@
 //线程本地缓存
 class ThreadCache{
     public:
-        ThreadCache* getInstance(){
+        static ThreadCache* getInstance(){
             static thread_local ThreadCache instance;
             return &instance;
         }
