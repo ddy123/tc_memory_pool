@@ -18,7 +18,59 @@ void* CentralCache::fetchRange(size_t index,size_t batchNum){
     }
     void* result=nullptr;
     try{
+        //尝试从中心缓存获取内存块
+        result=centralFreeList_[index].load(std::memory_order_relaxed);
+        if(!result)//如果中心缓存为空，从页缓存获取新的内存块
+        {
+            size_t size=(index+1)*ALIGNMENT;
+            result=fetchFromPageCache(size);
+            if(!result){
+                locks_[index].clear(std::memory_order_release);
+                return nullptr;
+            }
+            //将此PageCache获取的内存块分成小块
+            char* start=static_cast<char*>(result);
+            size_t totalBlocks=(SPAN_PAGES*PageCache::PAGE_SIZE)/size;
+            size_t allocBlocks=std::min(batchNum,totalBlocks);
+            //构建返回给ThreadCache的内存块链表
+            if(allocBlocks>1){
+                //确保至少有两个块才构建链表
+                for(size_t i=1;i<allocBlocks;++i){
+                    void* current=start+(i-1)*size;
+                    void* next=start+i*size;
+                    *reinterpret_cast<void**>(current)=next;
+                }
+                *reinterpret_cast<void**>(start+(allocBlocks-1)*size)=nullptr;
+            }
+            if(totalBlocks>allocBlocks){
+                void* remainStart=start+allocBlocks*size;
+                for(size_t i=allocBlocks+1;i<totalBlocks;++i){
+                    void* current=start+(i-1)*size;
+                    void* next=start+i*size;
+                    *interpret_cast<void**>(current)=next;
+                }
+                *interpret_cast<void**>(start+(totalBlocks-1)*size)=nullptr;
+                centralFreeList_[index].store(remainStart,std::memory_order_release);
+            }
 
+        }else//如果中心缓存有index对应大小的内存块
+        {
+            //从现有链表中获取指定数量的块
+            void* current=result;
+            void* pre=nullptr;
+            size_t count=0;
+            while(current&&count<batchNum){
+                prev=current;
+                current=*reinterpret_cast<void**>(current);
+                count++;
+            }   
+            batchNum=count;
+            if(prev){
+                *reinterpret_cast<void**>(prev)=nullptr;
+            }
+            centralFreeList_[index].store(current,std::memory_order_release);
+
+        }
     }catch(...){
         locks_[index].clear(std::memory_order_release);
         throw;
