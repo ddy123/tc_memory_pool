@@ -107,4 +107,17 @@ void CentralCache::returnRange(void* start,size_t size,size_t index){
     locks_[index].clear(std::memory_order_release);
 }
 
+void* CentralCache::fetchFromPageCache(size_t size){
+    //计算实际所需的页数，向上取整
+    size_t numPages=(size+PageCache::PAGE_SIZE-1)/PageCache::PAGE_SIZE;
+    //根据大小决定分配策略
+    if(size<=SPAN_PAGES*PageCache::PAGE_SIZE){
+        //小于等于32kB的请求，使用固定8页
+        return PageCache::getInstance().allocateSpan(SPAN_PAGES);
+    }else{
+        //大于32KB的请求，按实际需求分配
+        return PageCache::getInstance().allocateSpan(numPages);
+    }
+}
+
 }
