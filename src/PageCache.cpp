@@ -45,6 +45,64 @@ namespace ddy_memoryPool{
         spanMap_[memory]=span;
         return memory;
     }
+    void PageCache::deallocateSpan(void* ptr,size_t numPages){
+        std::lock_guard<std::mutex> lock(mutex_);
+
+        //查找对应的span,没找到代表不是PageCache分配的内存，直接返回
+        auto it=spanMap_.find(ptr);
+        if(it==spanMap_.end()){
+            return;}
+
+            Span* span=it->second;
+
+            //尝试合并相邻的span
+            void* nextAddr=static_cast<char*>(ptr)+numPages*PAGE_SIZE;
+            auto nextIt=spanMap_.find(nextAddr);
+
+            if(nextIt!=spanMap_.end()){
+                Span* nextSpan=nextIt->second;
+
+                //1.首先检查nextSpan是否在空闲链表中
+                bool found=false;
+                auto& list=freeSpans_[nextSpan->numPages];
+
+              // 检查是否是头节点
+        if (nextList == nextSpan)
+        {
+            nextList = nextSpan->next;
+            found = true;
+        }
+        else if (nextList) // 只有在链表非空时才遍历
+        {
+            Span* prev = nextList;
+            while (prev->next)
+            {
+                if (prev->next == nextSpan)
+                {   
+                    // 将nextSpan从空闲链表中移除
+                    prev->next = nextSpan->next;
+                    found = true;
+                    break;
+                }
+                prev = prev->next;
+            }
+        }
+
+        // 2. 只有在找到nextSpan的情况下才进行合并
+        if (found)
+        {
+            // 合并span
+            span->numPages += nextSpan->numPages;
+            spanMap_.erase(nextAddr);
+            delete nextSpan;
+        }
+    }
+
+    // 将合并后的span通过头插法插入空闲列表
+    auto& list = freeSpans_[span->numPages];
+    span->next = list;
+    list = span;
+    }
     void* PageCache::systemAlloc(size_t numPages){
         size_t size=numPages*PAGE_SIZE;
         //使用mmap分配内存
